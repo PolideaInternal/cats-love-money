@@ -1,0 +1,16 @@
+---
+name: CI
+on:
+  - push
+  - pull_request
+
+jobs:
+  statics:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+      - uses: pre-commit/action@v1.0.1
+        with:
+          extra_args: --show-diff-on-failure
