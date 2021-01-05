@@ -16,7 +16,7 @@ a `please-do-not-kill-me` label on it.
 To use this tool do:
 ```
 pip install -r requirements.txt
-python -r clean_all.py
+python clean_all.py
 ```
 
 And that's all!
