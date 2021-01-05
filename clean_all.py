@@ -63,7 +63,7 @@ class BaseDiscoveryClient:
 
     @staticmethod
     def _delete(
-        name: str,
+        resource_name: str,
         endpoint: DiscoveryEndpoint,
         instance: Dict,
         key: str = "id",
@@ -72,13 +72,15 @@ class BaseDiscoveryClient:
         """
         Calls endpoint.delete(...).execute() to execute discovery API.
 
-        :param name: name of object to delete, used for logging
+        :param resource_name: name of object to delete, used for logging
         :param endpoint: An discovery API object for example ``self.client.instances()``
         :param instance: object to be deleted
         :param key: key to get instance name/id
         :param **kwargs: keyword arguments passed to API delete request
         """
-        singular_name = name[:-1] if name.endswith("s") else name
+        singular_name = (
+            resource_name[:-1] if resource_name.endswith("s") else resource_name
+        )
         logger.info(f"Deleting {singular_name}: {instance.get(key, 'unknown id')}")
         try:
             endpoint.delete(**kwargs).execute()
@@ -158,7 +160,7 @@ class ComputeClient(BaseDiscoveryClient):
                     obj["creationTimestamp"]
                 ):
                     self._delete(
-                        name=endpoint_name,
+                        resource_name=endpoint_name,
                         endpoint=endpoint,
                         instance=obj,
                         project=self.project_id,
@@ -189,7 +191,7 @@ class DataprocClient(BaseDiscoveryClient):
                 last_state_date
             ):
                 self._delete(
-                    name="cluster",
+                    resource_name="cluster",
                     endpoint=self.client.projects().regions().clusters(),
                     instance=cluster,
                     key="clusterName",
@@ -218,7 +220,13 @@ class ComposerClient(BaseDiscoveryClient):
             if SKIP_LABEL not in env.get("labels", {}) and self.is_stale(
                 env["updateTime"]
             ):
-                self._delete(name="composer", endpoint=conn, key="name", instance=env)
+                self._delete(
+                    resource_name="composer",
+                    endpoint=conn,
+                    key="name",
+                    instance=env,
+                    name=env["name"],
+                )
 
     def delete_all_environments(self, locations: List[str]) -> None:
         self._delete_in_all_locations(locations=locations, object_name="composers")
