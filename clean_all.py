@@ -76,7 +76,7 @@ class BaseDiscoveryClient:
         :param endpoint: An discovery API object for example ``self.client.instances()``
         :param instance: object to be deleted
         :param key: key to get instance name/id
-        :param **kwargs: keyword arguments passed to API list request
+        :param **kwargs: keyword arguments passed to API delete request
         """
         singular_name = name[:-1] if name.endswith("s") else name
         logger.info(f"Deleting {singular_name}: {instance.get(key, 'unknown id')}")
