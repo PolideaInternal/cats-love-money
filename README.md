@@ -1,5 +1,5 @@
 # Cats Love Money 🐈‍⬛
-Set of scripts to terminate various GCP resources to save cash and cats 🐈‍⬛
+Set of scripts to terminate various GCP resources to save cash and cats.
 
 Currently we support deleting:
 - Cloud Composer instances
