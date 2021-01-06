@@ -156,9 +156,13 @@ class ComputeClient(BaseDiscoveryClient):
             for obj in self._iterate(
                 endpoint=endpoint, project=self.project_id, zone=zone
             ):
-                if SKIP_LABEL not in obj.get("labels", {}) and self.is_stale(
-                    obj["creationTimestamp"]
-                ):
+                is_not_labeled = SKIP_LABEL not in obj.get("labels", {})
+                is_stale = self.is_stale(obj["creationTimestamp"])
+                # In case of disk we check if it is used by anything else
+                # in case of other resources we return True
+                has_no_users = not bool(obj.get("users"))
+
+                if is_not_labeled and is_stale and has_no_users:
                     self._delete(
                         resource_name=endpoint_name,
                         endpoint=endpoint,
