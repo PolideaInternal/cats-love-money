@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 import google
 import google.auth
+from google.auth.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from loguru import logger
@@ -17,7 +18,7 @@ class BaseDiscoveryClient:
     endpoint = None
     version = "v1"
 
-    def __init__(self, project_id, credentials):
+    def __init__(self, project_id: str, credentials: Credentials):
         self.credentials = credentials
         self.project_id = project_id
 
@@ -41,16 +42,18 @@ class BaseDiscoveryClient:
 
     @staticmethod
     def _iterate(
-        endpoint: DiscoveryEndpoint, key: str = "items", **kwargs
+        endpoint: DiscoveryEndpoint,
+        payload: Dict,
+        key: str = "items",
     ) -> List[Dict]:
         """
         Iterates through endpoint.list(...).execute() discovery API endpoint
 
         :param endpoint: An discovery API object for example ``self.client.instances()``
         :param key: key used to get objects from list response
-        :param **kwargs: keyword arguments passed to API list request
+        :param payload: keyword arguments passed to API list request
         """
-        request = endpoint.list(**kwargs)
+        request = endpoint.list(**payload)
 
         instance_list = []
         while request is not None:
@@ -67,28 +70,28 @@ class BaseDiscoveryClient:
         return instance_list
 
     @staticmethod
+    def _singular_name(name: str) -> str:
+        return name[:-1] if name.endswith("s") else name
+
     def _delete(
+        self,
         resource_name: str,
+        resource_id: str,
         endpoint: DiscoveryEndpoint,
-        instance: Dict,
-        key: str = "id",
-        **kwargs,
+        payload: Dict,
     ):
         """
         Calls endpoint.delete(...).execute() to execute discovery API.
 
-        :param resource_name: name of object to delete, used for logging
+        :param resource_name: name of object to delete, used for logging, for example ``clusters``
+        :param resource_id: id fo the resource to delete, used for logging
         :param endpoint: An discovery API object for example ``self.client.instances()``
-        :param instance: object to be deleted
-        :param key: key to get instance name/id
-        :param **kwargs: keyword arguments passed to API delete request
+        :param payload: keyword arguments passed to API delete request
         """
-        singular_name = (
-            resource_name[:-1] if resource_name.endswith("s") else resource_name
-        )
-        logger.info(f"Deleting {singular_name}: {instance.get(key, 'unknown id')}")
+        singular_name = self._singular_name(resource_name)
+        logger.info(f"Deleting {singular_name}: {resource_id}")
         try:
-            endpoint.delete(**kwargs).execute()
+            endpoint.delete(**payload).execute()
         except Exception as err:  # pylint: disable=broad-except
             logger.warning(f"Failed to delete {singular_name}: {err}")
 
@@ -128,7 +131,7 @@ class ComputeClient(BaseDiscoveryClient):
             return
 
         locations_objects = self._iterate(
-            endpoint=self.client.regions(), project=self.project_id
+            endpoint=self.client.regions(), payload={"project": self.project_id}
         )
         locations, zones = [], []
         for loc in locations_objects:
@@ -159,7 +162,7 @@ class ComputeClient(BaseDiscoveryClient):
             logger.info(f"Deleting compute {endpoint_name} in {zone}")
             endpoint = getattr(self.client, endpoint_name)()
             for obj in self._iterate(
-                endpoint=endpoint, project=self.project_id, zone=zone
+                endpoint=endpoint, payload={"project": self.project_id, "zone": zone}
             ):
                 is_not_labeled = SKIP_LABEL not in obj.get("labels", {})
                 is_stale = self.is_stale(obj["creationTimestamp"])
@@ -170,11 +173,13 @@ class ComputeClient(BaseDiscoveryClient):
                 if is_not_labeled and is_stale and has_no_users:
                     self._delete(
                         resource_name=endpoint_name,
+                        resource_id=obj["id"],
                         endpoint=endpoint,
-                        instance=obj,
-                        project=self.project_id,
-                        zone=obj["zone"].split("/")[-1],
-                        obj=obj["id"],
+                        payload={
+                            "project": self.project_id,
+                            "zone": obj["zone"].split("/")[-1],
+                            self._singular_name(endpoint_name): obj["id"],
+                        },
                     )
 
     def delete_all_disks(self) -> None:
@@ -204,12 +209,14 @@ class GKEClient(BaseDiscoveryClient):
                 cluster["createTime"]
             ):
                 cluster_name = cluster["name"]
+                zone = cluster["zone"]
                 self._delete(
                     resource_name="cluster",
+                    resource_id=cluster_name,
                     endpoint=self.client.projects().locations().clusters(),
-                    instance=cluster,
-                    key="name",
-                    name=f"projects/{self.project_id}/locations/{cluster['zone']}/clusters/{cluster_name}",
+                    payload={
+                        "name": f"projects/{self.project_id}/locations/{zone}/clusters/{cluster_name}"
+                    },
                 )
 
 
@@ -220,8 +227,10 @@ class DataprocClient(BaseDiscoveryClient):
         clusters = self._iterate(
             endpoint=self.client.projects().regions().clusters(),
             key="clusters",
-            projectId=self.project_id,
-            region=location,
+            payload={
+                "projectId": self.project_id,
+                "region": location,
+            },
         )
         for cluster in clusters:
             last_state_date = cluster["status"]["stateStartTime"]
@@ -230,12 +239,13 @@ class DataprocClient(BaseDiscoveryClient):
             ):
                 self._delete(
                     resource_name="cluster",
+                    resource_id=cluster["clusterName"],
                     endpoint=self.client.projects().regions().clusters(),
-                    instance=cluster,
-                    key="clusterName",
-                    projectId=self.project_id,
-                    region=location,
-                    clusterName=cluster["clusterName"],
+                    payload={
+                        "projectId": self.project_id,
+                        "region": location,
+                        "clusterName": cluster["clusterName"],
+                    },
                 )
 
     def delete_all_clusters(self, locations: List[str]):
@@ -252,7 +262,7 @@ class ComposerClient(BaseDiscoveryClient):
         environments = self._iterate(
             endpoint=conn,
             key="environments",
-            parent=f"projects/{self.project_id}/locations/{location}",
+            payload={"parent": f"projects/{self.project_id}/locations/{location}"},
         )
         for env in environments:
             if SKIP_LABEL not in env.get("labels", {}) and self.is_stale(
@@ -260,10 +270,9 @@ class ComposerClient(BaseDiscoveryClient):
             ):
                 self._delete(
                     resource_name="composer",
+                    resource_id=env["name"].split("/")[-1],
                     endpoint=conn,
-                    key="name",
-                    instance=env,
-                    name=env["name"],
+                    payload={"name": env["name"]},
                 )
 
     def delete_all_environments(self, locations: List[str]) -> None:
