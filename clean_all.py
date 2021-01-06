@@ -55,10 +55,15 @@ class BaseDiscoveryClient:
         instance_list = []
         while request is not None:
             response = request.execute()
+
             instance_list.extend(response.get(key, []))
-            request = endpoint.list_next(  # pylint: disable=no-member
-                previous_request=request, previous_response=response
-            )
+            try:
+                request = endpoint.list_next(  # pylint: disable=no-member
+                    previous_request=request, previous_response=response
+                )
+            except AttributeError:
+                # In some cases API may return all resources in list request
+                break
         return instance_list
 
     @staticmethod
@@ -179,6 +184,35 @@ class ComputeClient(BaseDiscoveryClient):
         self._delete_all("instances")
 
 
+class GKEClient(BaseDiscoveryClient):
+    endpoint = "container"
+
+    def _delete_all_in_location(self, location: str):
+        raise NotImplementedError(
+            "GKEClient is able to list all clusters in one request."
+        )
+
+    def delete_all_clusters(self):
+        logger.info("Deleting GKE clusters in ALL locations")
+        endpoint = self.client.projects().locations().clusters()
+        list_response = endpoint.list(
+            parent=f"projects/{self.project_id}/locations/-"
+        ).execute()
+
+        for cluster in list_response["clusters"]:
+            if SKIP_LABEL not in cluster.get("resourceLabels", {}) and self.is_stale(
+                cluster["createTime"]
+            ):
+                cluster_name = cluster["name"]
+                self._delete(
+                    resource_name="cluster",
+                    endpoint=self.client.projects().locations().clusters(),
+                    instance=cluster,
+                    key="name",
+                    name=f"projects/{self.project_id}/locations/{cluster['zone']}/clusters/{cluster_name}",
+                )
+
+
 class DataprocClient(BaseDiscoveryClient):
     endpoint = "dataproc"
 
@@ -254,9 +288,10 @@ def main():
 
     # Discovery API
     credentials, project_id = google.auth.default()
-    compute = ComputeClient(project_id=project_id, credentials=credentials)
     composer = ComposerClient(project_id=project_id, credentials=credentials)
+    gke = GKEClient(project_id=project_id, credentials=credentials)
     dataproc = DataprocClient(project_id=project_id, credentials=credentials)
+    compute = ComputeClient(project_id=project_id, credentials=credentials)
 
     # Get locations and zones
     locations = compute.locations
@@ -266,6 +301,7 @@ def main():
     run_cleaning(
         "composer instances", composer.delete_all_environments, locations=locations
     )
+    run_cleaning("GKE clusters", gke.delete_all_clusters)
     run_cleaning("dataproc clusters", dataproc.delete_all_clusters, locations=locations)
     run_cleaning("compute instances", compute.delete_all_instances)
     run_cleaning("compute disks", compute.delete_all_disks)

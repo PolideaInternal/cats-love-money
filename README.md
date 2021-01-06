@@ -3,6 +3,7 @@ Set of scripts to terminate various GCP resources to save cash and cats.
 
 Currently we support deleting:
 - Cloud Composer instances
+- GKE clusters
 - Cloud Compute instances
 - Cloud Compute disks
 - Cloud Dataproc clusters
