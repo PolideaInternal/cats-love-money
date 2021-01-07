@@ -1,8 +1,9 @@
 # Cats Love Money 🐈‍⬛
-Set of scripts to terminate various GCP resources to save cash and cats 🐈‍⬛
+Set of scripts to terminate various GCP resources to save cash and cats.
 
 Currently we support deleting:
 - Cloud Composer instances
+- GKE clusters
 - Cloud Compute instances
 - Cloud Compute disks
 - Cloud Dataproc clusters
@@ -16,7 +17,7 @@ a `please-do-not-kill-me` label on it.
 To use this tool do:
 ```
 pip install -r requirements.txt
-python -r clean_all.py
+python clean_all.py
 ```
 
 And that's all!

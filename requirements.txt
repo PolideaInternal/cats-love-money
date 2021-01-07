@@ -1,7 +1,7 @@
-black==20.8b1
+black
 google==3.0.0
 google-api-python-client==1.12.8
-isort==5.7.0
-loguru==0.5.3
-pre-commit==2.9.3
-pylint==2.6.0
+isort
+loguru
+pre-commit
+pylint
