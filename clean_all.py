@@ -287,7 +287,7 @@ def run_cleaning(name, func, **kwargs):
         logger.exception(f"Failed to clean {name}")
 
 
-def main():
+def delete_resources():
     warnings.filterwarnings(
         "ignore",
         message=".*Your application has authenticated using end user credentials.*",
@@ -316,7 +316,3 @@ def main():
     run_cleaning("compute disks", compute.delete_all_disks)
 
     logger.info("Done")
-
-
-if __name__ == "__main__":
-    main()

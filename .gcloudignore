@@ -1,0 +1,10 @@
+.git
+.gitignore
+.github
+.idea
+.pre-commit-config.yaml
+.pylintrc
+Dockerfile
+LICENSE
+main.yaml
+README.md
