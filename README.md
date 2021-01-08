@@ -14,10 +14,24 @@ a `please-do-not-kill-me` label on it.
 
 ## Usage
 
-To use this tool do:
+### Triggering manually
+To use this tool manually do:
 ```
 pip install -r requirements.txt
-python clean_all.py
+python main.py
 ```
 
-And that's all!
+### Scheduling on GCP
+
+You may consider deploying this script as a cloud function that will be then
+triggered on schedule using cloud scheduler. To do this execute:
+
+```
+TOPIC="delete_gcp_resources"
+gcloud pubsub topics create "${TOPIC}"
+gcloud functions deploy delete_gcp_resources --runtime=python38  --trigger-topic="${TOPIC}" --timeout=500s
+gcloud scheduler jobs create http delete_gcp_resources --schedule="0 2 * * *" --topic="${TOPIC}"
+```
+
+We are using Pub/Sub instead of http trigger as cloud workflows seems to have some hard times with permissions
+when invoking cloud functions.
