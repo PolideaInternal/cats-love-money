@@ -26,7 +26,7 @@ python main.py
 You may consider deploying this script as a cloud function that will be then
 triggered on schedule using cloud scheduler. To do this execute:
 
-```
+```bash
 TOPIC="delete_gcp_resources"
 gcloud pubsub topics create "${TOPIC}"
 gcloud functions deploy delete_gcp_resources --runtime=python38  --trigger-topic="${TOPIC}" --timeout=500s
