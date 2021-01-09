@@ -29,8 +29,20 @@ triggered on schedule using cloud scheduler. To do this execute:
 ```bash
 TOPIC="delete_gcp_resources"
 gcloud pubsub topics create "${TOPIC}"
-gcloud functions deploy delete_gcp_resources --runtime=python38  --trigger-topic="${TOPIC}" --timeout=500s
-gcloud scheduler jobs create http delete_gcp_resources --schedule="0 2 * * *" --topic="${TOPIC}"
+
+gcloud functions deploy delete_gcp_resources \
+    --runtime="python38" \
+    --trigger-topic="${TOPIC}" \
+    --timeout="500s"
+
+gcloud scheduler jobs create pubsub delete_gcp_resources \
+    --schedule="0 2 * * *" \
+    --topic="${TOPIC}"
+    --message-body="trigger"
+```
+or simply do
+```
+./deploy.sh
 ```
 
 We are using Pub/Sub instead of http trigger as cloud workflows seems to have some hard times with permissions
