@@ -100,7 +100,7 @@ class BaseDiscoveryClient:
 
     def _delete_in_all_locations(self, locations, object_name: str):
         for location in locations:
-            logger.info(f"Deleting {object_name} in: {location}")
+            logger.debug(f"Deleting {object_name} in: {location}")
             try:
                 self._delete_all_in_location(location=location)
             except HttpError as err:
@@ -159,7 +159,7 @@ class ComputeClient(BaseDiscoveryClient):
         and then deletes those objects.
         """
         for zone in self.zones:
-            logger.info(f"Deleting compute {endpoint_name} in {zone}")
+            logger.debug(f"Deleting compute {endpoint_name} in {zone}")
             endpoint = getattr(self.client, endpoint_name)()
             for obj in self._iterate(
                 endpoint=endpoint, payload={"project": self.project_id, "zone": zone}
@@ -198,11 +198,15 @@ class GKEClient(BaseDiscoveryClient):
         )
 
     def delete_all_clusters(self):
-        logger.info("Deleting GKE clusters in ALL locations")
+        logger.debug("Deleting GKE clusters in ALL locations")
         endpoint = self.client.projects().locations().clusters()
         list_response = endpoint.list(
             parent=f"projects/{self.project_id}/locations/-"
         ).execute()
+
+        if "clusters" not in list_response:
+            logger.error("No `clusters` in in GKE api.")
+            return
 
         for cluster in list_response["clusters"]:
             if SKIP_LABEL not in cluster.get("resourceLabels", {}) and self.is_stale(
@@ -283,6 +287,7 @@ def run_cleaning(name, func, **kwargs):
     logger.warning(f"Attempting to clean {name}")
     try:
         func(**kwargs)
+        logger.info(f"Cleaning of {name} done")
     except Exception:  # pylint: disable=broad-except
         logger.exception(f"Failed to clean {name}")
 
