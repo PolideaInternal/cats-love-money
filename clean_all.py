@@ -283,6 +283,37 @@ class ComposerClient(BaseDiscoveryClient):
         self._delete_in_all_locations(locations=locations, object_name="composers")
 
 
+class MemorystoreRedisClient(BaseDiscoveryClient):
+    endpoint = "redis"
+
+    def _delete_all_in_location(self, location: str):
+        instances = self._iterate(
+            endpoint=self.client.projects().locations().instances(),
+            key="instances",
+            payload={"parent": f"projects/{self.project_id}/locations/{location}"},
+        )
+
+        for instance in instances:
+            logger.info(instance)
+            create_date = instance["createTime"]
+            if SKIP_LABEL not in instance.get("labels", []) and self.is_stale(
+                create_date
+            ):
+                self._delete(
+                    resource_name="instance",
+                    resource_id=instance["name"],
+                    endpoint=self.client.projects().locations().instances(),
+                    payload={
+                        "name": instance["name"],
+                    },
+                )
+
+    def delete_all_instances(self, locations: List[str]):
+        self._delete_in_all_locations(
+            locations=locations, object_name="memorystore redis instances"
+        )
+
+
 def run_cleaning(name, func, **kwargs):
     logger.warning(f"Attempting to clean {name}")
     try:
@@ -306,6 +337,9 @@ def delete_resources():
     gke = GKEClient(project_id=project_id, credentials=credentials)
     dataproc = DataprocClient(project_id=project_id, credentials=credentials)
     compute = ComputeClient(project_id=project_id, credentials=credentials)
+    memorystore_redis = MemorystoreRedisClient(
+        project_id=project_id, credentials=credentials
+    )
 
     # Get locations and zones
     locations = compute.locations
@@ -319,5 +353,10 @@ def delete_resources():
     run_cleaning("dataproc clusters", dataproc.delete_all_clusters, locations=locations)
     run_cleaning("compute instances", compute.delete_all_instances)
     run_cleaning("compute disks", compute.delete_all_disks)
+    run_cleaning(
+        "memorystore redis instances",
+        memorystore_redis.delete_all_instances,
+        locations=locations,
+    )
 
     logger.info("Done")
