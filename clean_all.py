@@ -294,7 +294,6 @@ class MemorystoreRedisClient(BaseDiscoveryClient):
         )
 
         for instance in instances:
-            logger.info(instance)
             create_date = instance["createTime"]
             if SKIP_LABEL not in instance.get("labels", []) and self.is_stale(
                 create_date
@@ -312,6 +311,34 @@ class MemorystoreRedisClient(BaseDiscoveryClient):
         self._delete_in_all_locations(
             locations=locations, object_name="memorystore redis instances"
         )
+
+
+class SpannerClient(BaseDiscoveryClient):
+    endpoint = "spanner"
+
+    def _delete_all_in_location(self, location: str):
+        raise NotImplementedError(
+            "Spanner is able to list all instances in one request."
+        )
+
+    def delete_all_instances(self):
+        logger.debug("Deleting Spanner instances in ALL locations")
+        instances = self._iterate(
+            endpoint=self.client.projects().instances(),
+            key="instances",
+            payload={"parent": f"projects/{self.project_id}"},
+        )
+
+        for instance in instances:
+            if SKIP_LABEL not in instance.get("labels", []):
+                self._delete(
+                    resource_name="instance",
+                    resource_id=instance["name"],
+                    endpoint=self.client.projects().instances(),
+                    payload={
+                        "name": instance["name"],
+                    },
+                )
 
 
 def run_cleaning(name, func, **kwargs):
@@ -340,6 +367,7 @@ def delete_resources():
     memorystore_redis = MemorystoreRedisClient(
         project_id=project_id, credentials=credentials
     )
+    spanner = SpannerClient(project_id=project_id, credentials=credentials)
 
     # Get locations and zones
     locations = compute.locations
@@ -357,6 +385,10 @@ def delete_resources():
         "memorystore redis instances",
         memorystore_redis.delete_all_instances,
         locations=locations,
+    )
+    run_cleaning(
+        "spanner instances",
+        spanner.delete_all_instances,
     )
 
     logger.info("Done")
