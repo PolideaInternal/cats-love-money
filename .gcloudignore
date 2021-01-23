@@ -1,10 +1,7 @@
-.git
-.gitignore
-.github
-.idea
-.pre-commit-config.yaml
-.pylintrc
-Dockerfile
-LICENSE
-main.yaml
-README.md
+# ignore everything
+*
+
+# except files we want
+!main.py
+!clean_all.py
+!requirements.txt
