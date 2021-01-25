@@ -341,6 +341,35 @@ class SpannerClient(BaseDiscoveryClient):
                 )
 
 
+class BigTableClient(BaseDiscoveryClient):
+    endpoint = "bigtableadmin"
+    version = "v2"
+
+    def _delete_all_in_location(self, location: str):
+        raise NotImplementedError(
+            "BigTable is able to list all instances in one request."
+        )
+
+    def delete_all_instances(self):
+        logger.debug("Deleting BigTable instances in ALL locations")
+        instances = self._iterate(
+            endpoint=self.client.projects().instances(),
+            key="instances",
+            payload={"parent": f"projects/{self.project_id}"},
+        )
+
+        for instance in instances:
+            if SKIP_LABEL not in instance.get("labels", []):
+                self._delete(
+                    resource_name="instance",
+                    resource_id=instance["name"],
+                    endpoint=self.client.projects().instances(),
+                    payload={
+                        "name": instance["name"],
+                    },
+                )
+
+
 def run_cleaning(name, func, **kwargs):
     logger.warning(f"Attempting to clean {name}")
     try:
@@ -368,6 +397,7 @@ def delete_resources():
         project_id=project_id, credentials=credentials
     )
     spanner = SpannerClient(project_id=project_id, credentials=credentials)
+    big_table = BigTableClient(project_id=project_id, credentials=credentials)
 
     # Get locations and zones
     locations = compute.locations
@@ -389,6 +419,10 @@ def delete_resources():
     run_cleaning(
         "spanner instances",
         spanner.delete_all_instances,
+    )
+    run_cleaning(
+        "big table instances",
+        big_table.delete_all_instances,
     )
 
     logger.info("Done")
